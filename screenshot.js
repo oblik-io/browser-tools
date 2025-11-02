@@ -1,4 +1,4 @@
-#!/usr/bin/env -S npx tsx
+#!/usr/bin/env node
 
 import { tmpdir } from "node:os";
 import { join } from "node:path";

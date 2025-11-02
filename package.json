@@ -7,9 +7,5 @@
 	"license": "MIT",
 	"dependencies": {
 		"puppeteer-core": "^23.11.1"
-	},
-	"devDependencies": {
-		"tsx": "^4.19.2",
-		"typescript": "^5.7.2"
 	}
 }

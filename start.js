@@ -1,6 +1,6 @@
-#!/usr/bin/env -S npx tsx
+#!/usr/bin/env node
 
-import { exec, execSync } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import puppeteer from "puppeteer-core";
 
 const useProfile = process.argv[2] === "--profile";
@@ -24,19 +24,20 @@ try {
 await new Promise((r) => setTimeout(r, 1000));
 
 // Setup profile directory
-execSync("mkdir -p ~/.cache//browser-tools", { stdio: "ignore" });
+execSync("mkdir -p ~/.cache/scraping", { stdio: "ignore" });
 
 if (useProfile) {
 	// Sync profile with rsync (much faster on subsequent runs)
 	execSync(
-		'rsync -a --delete "/Users/badlogic/Library/Application Support/Google/Chrome/" ~/.cache//browser-tools/',
+		'rsync -a --delete "/Users/badlogic/Library/Application Support/Google/Chrome/" ~/.cache/scraping/',
 		{ stdio: "pipe" },
 	);
 }
 
 // Start Chrome in background (detached so Node can exit)
-exec(
-	'/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=9222 --user-data-dir="$HOME/.cache/browser-tools"',
+spawn(
+	"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+	["--remote-debugging-port=9222", `--user-data-dir=${process.env["HOME"]}/.cache/scraping`],
 	{ detached: true, stdio: "ignore" },
 ).unref();
 

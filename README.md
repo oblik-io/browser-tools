@@ -5,51 +5,42 @@ Minimal CDP tools for collaborative site exploration.
 ## Start Chrome
 
 ```bash
-./start.ts
-./start.ts --profile
+./start.js              # Fresh profile
+./start.js --profile    # Copy your profile (cookies, logins)
 ```
 
-Start Chrome on `:9222` with remote debugging enabled. Use `--profile` flag to copy the default Chrome profile (cookies, logins). Without the flag, starts with a fresh profile.
+Start Chrome on `:9222` with remote debugging.
 
 ## Navigate
 
 ```bash
-./nav.ts https://example.com
-./nav.ts https://example.com --new
+./nav.js https://example.com
+./nav.js https://example.com --new
 ```
 
 Navigate current tab or open new tab.
 
-## Take Screenshot
+## Screenshot
 
 ```bash
-./screenshot.ts
+./screenshot.js
 ```
 
-Take a screenshot of the current viewport and save it to a temporary file. Returns the file path.
+Screenshot current viewport, returns temp file path.
 
-## Execute Code
+## Evaluate JavaScript
 
 ```bash
-./x.js 'document.title'
-./x.js 'document.querySelectorAll("a").length'
-./x.js 'Array.from(document.querySelectorAll("a")).map(a => ({text: a.textContent.trim(), href: a.href}))'
+./eval.js 'document.title'
+./eval.js 'document.querySelectorAll("a").length'
 ```
 
-Execute arbitrary JavaScript in the active tab. Code runs in async context.
+Execute JavaScript in active tab (async context).
 
-## Ask User to Pick Element
+## Pick Elements
 
 ```bash
-./x.js 'await pick("Click the article title")'
-./x.js 'await pick("Select the submit button")'
+./pick.js "Click the submit button"
 ```
 
-Show overlay and ask user to click an element. The message parameter is required and should describe what element to click. Returns:
-```
-tag: h1
-id: title
-class: article-headline
-text: Breaking News Story
-html: <h1 id="title" class="article-headline">Breaking News Story</h1>
-```
+Interactive element picker. Click to select, Cmd/Ctrl+Click for multi-select, Enter to finish.
