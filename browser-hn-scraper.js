@@ -4,7 +4,7 @@
  * Hacker News Scraper
  *
  * Fetches and parses submissions from Hacker News front page.
- * Usage: node hn-scraper.js [--limit <number>]
+ * Usage: node browser-hn-scraper.js [--limit <number>]
  */
 
 import * as cheerio from 'cheerio';

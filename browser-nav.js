@@ -6,10 +6,10 @@ const url = process.argv[2];
 const newTab = process.argv[3] === "--new";
 
 if (!url) {
-	console.log("Usage: nav.js <url> [--new]");
+	console.log("Usage: browser-nav.js <url> [--new]");
 	console.log("\nExamples:");
-	console.log("  nav.js https://example.com       # Navigate current tab");
-	console.log("  nav.js https://example.com --new # Open in new tab");
+	console.log("  browser-nav.js https://example.com       # Navigate current tab");
+	console.log("  browser-nav.js https://example.com --new # Open in new tab");
 	process.exit(1);
 }
 
