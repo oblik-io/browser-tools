@@ -238,10 +238,10 @@ async function getDocumentDetails(page, id_doc) {
 }
 
 /**
- * Scrape HTML content for documents without PDF
+ * Scrape HTML content and convert to PDF for documents without native PDF
  */
 async function scrapeHtmlContent(page, id_doc, title, outputPath = null) {
-  console.error(`→ No PDF found, scraping HTML content...`);
+  console.error(`→ No PDF found, scraping HTML and converting to PDF...`);
 
   const viewerUrl = `${BASE_URL}/ua/catalog/document.html?id_doc=${id_doc}`;
   await page.goto(viewerUrl, { waitUntil: 'networkidle2' });
@@ -257,8 +257,8 @@ async function scrapeHtmlContent(page, id_doc, title, outputPath = null) {
     // Get clean HTML without scripts
     const clone = mainContent.cloneNode(true);
 
-    // Remove script tags
-    clone.querySelectorAll('script, style').forEach(el => el.remove());
+    // Remove script tags and unwanted elements
+    clone.querySelectorAll('script, style, .no-print').forEach(el => el.remove());
 
     return {
       html: clone.innerHTML,
@@ -278,21 +278,69 @@ async function scrapeHtmlContent(page, id_doc, title, outputPath = null) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
-    table { border-collapse: collapse; width: 100%; margin: 20px 0; }
-    table, th, td { border: 1px solid #ddd; }
-    th, td { padding: 8px; text-align: left; }
-    th { background-color: #f2f2f2; }
-    h1, h2, h3, h4 { color: #333; margin-top: 20px; }
+    @page { margin: 2cm; }
+    body {
+      font-family: 'Times New Roman', serif;
+      font-size: 12pt;
+      line-height: 1.5;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 15px 0;
+      page-break-inside: avoid;
+    }
+    table, th, td { border: 1px solid #333; }
+    th, td {
+      padding: 6px 8px;
+      text-align: left;
+      font-size: 11pt;
+    }
+    th {
+      background-color: #f0f0f0;
+      font-weight: bold;
+    }
+    h1 {
+      font-size: 18pt;
+      margin-top: 0;
+      margin-bottom: 10px;
+      page-break-after: avoid;
+    }
+    h2, h3, h4 {
+      color: #333;
+      margin-top: 15px;
+      margin-bottom: 8px;
+      page-break-after: avoid;
+    }
+    h2 { font-size: 16pt; }
+    h3 { font-size: 14pt; }
+    h4 { font-size: 12pt; }
+    p { margin: 8px 0; }
+    .metadata {
+      font-size: 10pt;
+      color: #666;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+    }
   </style>
 </head>
 <body>
   <h1>${title}</h1>
-  <p><strong>Джерело:</strong> <a href="${viewerUrl}">${viewerUrl}</a></p>
-  <hr>
+  <div class="metadata">
+    <strong>Джерело:</strong> ${viewerUrl}<br>
+    <strong>ID документа:</strong> ${id_doc}<br>
+    <strong>Дата скрапінгу:</strong> ${new Date().toISOString().split('T')[0]}
+  </div>
   ${content.html}
 </body>
 </html>`;
+
+  // Set HTML content and generate PDF
+  await page.setContent(fullHtml, { waitUntil: 'domcontentloaded' });
 
   // Create safe filename
   const safeTitle = title
@@ -302,22 +350,31 @@ async function scrapeHtmlContent(page, id_doc, title, outputPath = null) {
     .replace(/^_|_$/g, '')
     .substring(0, 200);
 
-  const filename = outputPath || `${safeTitle}.html`;
+  const filename = outputPath || `${safeTitle}.pdf`;
 
-  // Save to file
-  const fs = await import('fs');
-  fs.writeFileSync(filename, fullHtml, 'utf-8');
+  // Generate PDF from HTML
+  const pdfBuffer = await page.pdf({
+    path: filename,
+    format: 'A4',
+    printBackground: true,
+    margin: {
+      top: '2cm',
+      right: '2cm',
+      bottom: '2cm',
+      left: '2cm'
+    }
+  });
 
-  console.error(`✓ Scraped HTML to: ${filename}`);
-  console.error(`✓ Size: ${fullHtml.length} bytes`);
+  console.error(`✓ Converted HTML to PDF: ${filename}`);
+  console.error(`✓ Size: ${pdfBuffer.length} bytes`);
 
   return {
     id_doc,
     title,
     url: viewerUrl,
-    format: 'html',
+    format: 'pdf-from-html',
     downloadPath: filename,
-    size: fullHtml.length
+    size: pdfBuffer.length
   };
 }
 
