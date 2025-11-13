@@ -445,11 +445,11 @@ File Search stores (постійні колекції документів з em
 - Python SDK
 - JavaScript SDK
 - REST API
-- **Наш CLI tool** `browser-gemini-upload.js`
+- **CLI tool** `browser-gemini-upload.js` (в цьому репозиторії)
 
-### Чому наш CLI інструмент корисний?
+### Переваги CLI інструменту
 
-Наш `browser-gemini-upload.js` надає функціонал, якого **немає в GUI**:
+`browser-gemini-upload.js` надає функціонал, якого **немає в GUI**:
 
 ```bash
 # Створити постійне сховище документів
