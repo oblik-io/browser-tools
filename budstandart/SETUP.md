@@ -111,6 +111,11 @@ Email: **`sdoroshenko@gmail.com`**
 4. Вибери проєкт: **`fine-eye-464103-e9`**
 5. Скопіюй згенерований ключ
 
+**Про плани:**
+- **Free tier**: 60 requests/min, 1 GB storage
+- **Google AI Pro (paid)**: Вищі ліміти + доступ до GUI demo "Ask the Manual" в AI Studio
+- **Pay-as-you-go**: $0.15 за 1M токенів (індексація)
+
 #### Варіант B: Через gcloud CLI
 
 ```bash
@@ -408,11 +413,38 @@ chmod +x /Users/sd/scripts/budstandart-monitor.sh
 
 ---
 
+## GUI інтерфейс (опціонально)
+
+### AI Studio Demo "Ask the Manual"
+
+**Доступ:** https://aistudio.google.com/
+
+**Що можна робити:**
+- ✅ Upload документи через drag & drop
+- ✅ Задавати питання природною мовою
+- ✅ Отримувати відповіді з citations
+- ✅ Тестувати File Search як end-user
+
+**Вимоги:**
+- 🔑 Paid API key (входить в **Google AI Pro** план)
+- 💰 Або active billing account з pay-as-you-go
+
+**Обмеження GUI:**
+- ❌ Не можна переглянути список stores
+- ❌ Не можна управляти stores (create/delete)
+- ❌ Не можна бачити embeddings та індекси
+- ❌ Тільки для тестування, не для адміністрування
+
+**Для адміністрування:** Використовуй наш CLI tool `browser-gemini-upload.js`
+
+---
+
 ## Додаткові ресурси
 
 ### Документація
 - [Gemini API File Search](https://ai.google.dev/gemini-api/docs/file-search)
 - [Google AI Studio](https://aistudio.google.com/)
+- [Google AI Pro Plan](https://ai.google/discover/aipricing/)
 - [Browser Tools blog](https://mariozechner.at/posts/2025-11-02-what-if-you-dont-need-mcp/)
 
 ### Корисні команди
