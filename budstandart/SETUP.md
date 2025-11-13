@@ -43,29 +43,41 @@ npm install
 
 ## Крок 2: Налаштування BUDSTANDART
 
-### 2.1 Credentials
+### 2.1 Credentials через .env файл
 
-У тебе вже є обліковий запис на budstandart.com. Експортуй credentials:
+Створи `.env` файл в директорії `budstandart/`:
+
+```bash
+cd budstandart
+cp .env.example .env
+```
+
+Відкрий `.env` та заповни своїми даними:
+
+```bash
+# BUDSTANDART Credentials
+BUDSTANDART_EMAIL=your-email@example.com
+BUDSTANDART_PASSWORD=your-password
+
+# Gemini API Configuration
+GEMINI_API_KEY=AIza...your-api-key
+GOOGLE_CLOUD_PROJECT=fine-eye-464103-e9
+```
+
+**Важливо:** `.env` файл вже додано в `.gitignore` і не буде commitитись в git.
+
+### 2.2 Альтернатива: Environment Variables
+
+Якщо не хочеш використовувати `.env`, можеш експортувати через shell:
 
 ```bash
 export BUDSTANDART_EMAIL="your-email@example.com"
 export BUDSTANDART_PASSWORD="your-password"
+export GEMINI_API_KEY="AIza..."
+export GOOGLE_CLOUD_PROJECT="fine-eye-464103-e9"
 ```
 
-**Рекомендація:** Додай в `~/.zshrc` або `~/.bashrc`:
-
-```bash
-# BUDSTANDART credentials
-export BUDSTANDART_EMAIL="your-email@example.com"
-export BUDSTANDART_PASSWORD="your-password"
-```
-
-Потім:
-```bash
-source ~/.zshrc  # або ~/.bashrc
-```
-
-### 2.2 Запуск Chrome з remote debugging
+### 2.3 Запуск Chrome з remote debugging
 
 З кореня `browser-tools/`:
 
@@ -117,28 +129,25 @@ gcloud services enable generativelanguage.googleapis.com
 
 **Примітка:** AI Studio - простіший варіант для розробки/тестування.
 
-### 3.3 Експорт API Key
+### 3.3 Додавання API Key в .env
+
+API key вже додається в `.env` файл (з кроку 2.1):
 
 ```bash
-export GEMINI_API_KEY="AIza..."  # Твій ключ
-```
-
-Додай в `~/.zshrc` або `~/.bashrc`:
-
-```bash
-# Gemini API
-export GEMINI_API_KEY="AIza..."
-export GOOGLE_CLOUD_PROJECT="fine-eye-464103-e9"
+# Gemini API Configuration
+GEMINI_API_KEY=AIza...your-api-key
+GOOGLE_CLOUD_PROJECT=fine-eye-464103-e9
 ```
 
 ### 3.4 Перевірка налаштувань
 
 ```bash
-# Перевір що змінні встановлені
+# Перевір .env файл
+cat .env
+
+# Або перевір змінні (якщо використовуєш export)
 echo $BUDSTANDART_EMAIL
-echo $BUDSTANDART_PASSWORD
 echo $GEMINI_API_KEY
-echo $GOOGLE_CLOUD_PROJECT
 ```
 
 ---

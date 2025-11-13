@@ -4,7 +4,7 @@
  * BUDSTANDART Scraper
  *
  * Fetches and downloads documents from online.budstandart.com
- * Requires authentication. Set credentials via environment variables or CLI args:
+ * Requires authentication. Set credentials via .env file or environment variables:
  *   BUDSTANDART_EMAIL and BUDSTANDART_PASSWORD
  *
  * Usage:
@@ -14,6 +14,7 @@
  *   browser-budstandart.js --email <email> --password <password> <command>
  */
 
+import 'dotenv/config';
 import puppeteer from 'puppeteer-core';
 import { execSync } from 'child_process';
 import * as cheerio from 'cheerio';

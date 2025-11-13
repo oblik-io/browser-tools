@@ -4,7 +4,7 @@
  * Gemini File Search Uploader
  *
  * Upload documents to Gemini API File Search for semantic search
- * Requires GEMINI_API_KEY environment variable
+ * Requires GEMINI_API_KEY in .env file or environment variable
  *
  * Usage:
  *   browser-gemini-upload.js create-store <name>
@@ -13,6 +13,7 @@
  *   browser-gemini-upload.js search <query> --store <store-name>
  */
 
+import 'dotenv/config';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { GoogleAIFileManager } from '@google/generative-ai/server';
 import fs from 'fs';
