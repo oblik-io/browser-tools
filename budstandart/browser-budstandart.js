@@ -202,38 +202,110 @@ async function getDocumentDetails(page, id_doc) {
   const docUrl = `${BASE_URL}/ua/catalog/doc-page.html?id_doc=${id_doc}`;
   await page.goto(docUrl, { waitUntil: 'networkidle2' });
 
-  const html = await page.content();
-  const $ = cheerio.load(html);
+  // Extract all metadata using browser context
+  const details = await page.evaluate(() => {
+    // Get title
+    const h1 = document.querySelector('h1');
+    const title = h1 ? h1.textContent.trim() : null;
 
-  // Extract metadata
-  const title = $('h1.doc-title, h1').first().text().trim();
-  const metadata = {};
+    // Extract metadata from various possible locations
+    const metadata = {};
 
-  $('.doc-metadata tr, .document-info tr').each((i, el) => {
-    const $el = $(el);
-    const key = $el.find('td, th').first().text().trim().replace(':', '');
-    const value = $el.find('td').last().text().trim();
-    if (key && value) {
-      metadata[key] = value;
+    // Look for all table rows with document information
+    const rows = document.querySelectorAll('table tr, .doc-info tr, .document-info tr');
+    rows.forEach(row => {
+      const cells = row.querySelectorAll('td, th');
+      if (cells.length >= 2) {
+        const key = cells[0].textContent.trim().replace(':', '').trim();
+        const value = cells[1].textContent.trim();
+        if (key && value && value !== key) {
+          metadata[key] = value;
+        }
+      }
+    });
+
+    // Look for status information specifically
+    const statusKeywords = ['статус', 'стан', 'чинність', 'діє'];
+    const bodyText = document.body.textContent.toLowerCase();
+
+    // Extract status patterns
+    let status = null;
+    const statusPatterns = [
+      /статус[:\s]*(діючий|недіючий|чинний|нечинний)/i,
+      /стан[:\s]*(діючий|недіючий|чинний|нечинний)/i,
+      /(діючий|недіючий|чинний|нечинний)\s*документ/i
+    ];
+
+    for (const pattern of statusPatterns) {
+      const match = document.body.textContent.match(pattern);
+      if (match) {
+        status = match[1];
+        break;
+      }
     }
+
+    // Look for validity dates
+    let validFrom = null;
+    let validTo = null;
+
+    const datePatterns = [
+      /чинний з[:\s]*(\d{2}\.\d{2}\.\d{4})/i,
+      /набуває чинності[:\s]*(\d{2}\.\d{2}\.\d{4})/i,
+      /дата введення[:\s]*(\d{2}\.\d{2}\.\d{4})/i
+    ];
+
+    for (const pattern of datePatterns) {
+      const match = document.body.textContent.match(pattern);
+      if (match) {
+        validFrom = match[1];
+        break;
+      }
+    }
+
+    // Find PDF link
+    let pdfUrl = null;
+    const pdfLinks = document.querySelectorAll('a[href*=".pdf"], a[href*="download"]');
+    for (const link of pdfLinks) {
+      const href = link.getAttribute('href');
+      if (href && (href.includes('.pdf') || href.includes('download'))) {
+        pdfUrl = href;
+        break;
+      }
+    }
+
+    return {
+      title,
+      metadata,
+      status,
+      validFrom,
+      validTo,
+      pdfUrl
+    };
   });
 
-  // Find PDF download link
-  let pdfUrl = null;
-  $('a[href*=".pdf"], a[href*="download"]').each((i, el) => {
-    const href = $(el).attr('href');
-    if (href && (href.includes('.pdf') || href.includes('download'))) {
-      pdfUrl = href.startsWith('http') ? href : `${BASE_URL}${href}`;
-      return false;
-    }
-  });
+  // Clean up PDF URL
+  if (details.pdfUrl && !details.pdfUrl.startsWith('http')) {
+    details.pdfUrl = `${BASE_URL}${details.pdfUrl}`;
+  }
+
+  // Add status to metadata if found
+  if (details.status) {
+    details.metadata['Статус'] = details.status;
+  }
+  if (details.validFrom) {
+    details.metadata['Чинний з'] = details.validFrom;
+  }
+  if (details.validTo) {
+    details.metadata['Чинний до'] = details.validTo;
+  }
 
   return {
     id_doc,
-    title,
+    title: details.title,
     url: docUrl,
-    metadata,
-    pdfUrl
+    metadata: details.metadata,
+    status: details.status,
+    pdfUrl: details.pdfUrl
   };
 }
 
@@ -384,17 +456,45 @@ async function scrapeHtmlContent(page, id_doc, title, outputPath = null) {
 async function downloadPdf(page, id_doc, outputPath = null) {
   console.error(`→ Downloading document ${id_doc}...`);
 
-  // First get document title from doc-page
+  // First get document details including status from doc-page
   const docPageUrl = `${BASE_URL}/ua/catalog/doc-page.html?id_doc=${id_doc}`;
   await page.goto(docPageUrl, { waitUntil: 'networkidle2' });
 
-  const title = await page.evaluate(() => {
+  const docInfo = await page.evaluate(() => {
     const h1 = document.querySelector('h1');
-    return h1 ? h1.textContent.trim() : null;
+    const title = h1 ? h1.textContent.trim() : null;
+
+    // Extract status
+    let status = null;
+    const statusPatterns = [
+      /статус[:\s]*(діючий|недіючий|чинний|нечинний)/i,
+      /стан[:\s]*(діючий|недіючий|чинний|нечинний)/i,
+      /(діючий|недіючий|чинний|нечинний)\s*документ/i
+    ];
+
+    for (const pattern of statusPatterns) {
+      const match = document.body.textContent.match(pattern);
+      if (match) {
+        status = match[1];
+        break;
+      }
+    }
+
+    return { title, status };
   });
 
-  if (!title) {
+  if (!docInfo.title) {
     throw new Error(`Could not extract title for document ${id_doc}`);
+  }
+
+  const title = docInfo.title;
+  const status = docInfo.status;
+
+  // Warn if document is inactive
+  if (status && status.toLowerCase().includes('недіючий')) {
+    console.error(`⚠️  WARNING: Document status is "${status}" (inactive)`);
+  } else if (status) {
+    console.error(`✓ Document status: ${status}`);
   }
 
   // Navigate to document viewer to get PDF URL
@@ -415,7 +515,9 @@ async function downloadPdf(page, id_doc, outputPath = null) {
   // Fallback to HTML scraping if no PDF found
   if (!pdfUrl) {
     console.error(`→ No PDF iframe found, falling back to HTML scraping`);
-    return scrapeHtmlContent(page, id_doc, title, outputPath);
+    const result = await scrapeHtmlContent(page, id_doc, title, outputPath);
+    result.status = status;
+    return result;
   }
 
   console.error(`→ Found PDF: ${pdfUrl}`);
@@ -462,7 +564,8 @@ async function downloadPdf(page, id_doc, outputPath = null) {
     url: viewerUrl,
     pdfUrl,
     downloadPath: filename,
-    size: buffer.length
+    size: buffer.length,
+    status
   };
 }
 
