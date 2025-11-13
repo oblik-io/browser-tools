@@ -64,24 +64,62 @@ async function connectToChrome() {
  * Login to BUDSTANDART
  */
 async function login(page, email, password) {
-  console.error('→ Logging in to BUDSTANDART...');
+  console.error('→ Checking authentication...');
 
+  await page.goto(BASE_URL + '/ua/', { waitUntil: 'networkidle2' });
+
+  // Check if already logged in
+  const isLoggedIn = await page.evaluate(() => {
+    return document.body.textContent.includes('Доброго дня') ||
+           document.body.textContent.includes('Особистий кабінет');
+  });
+
+  if (isLoggedIn) {
+    console.error('✓ Already logged in (session active)');
+    return;
+  }
+
+  console.error('→ Logging in to BUDSTANDART...');
   await page.goto(LOGIN_URL, { waitUntil: 'networkidle2' });
 
-  // Fill login form
-  await page.type('input[name="email"]', email);
-  await page.type('input[name="password"]', password);
+  // Wait for login form
+  await page.waitForTimeout(2000);
 
-  // Submit form
-  await Promise.all([
-    page.click('button[type="submit"], input[type="submit"]'),
-    page.waitForNavigation({ waitUntil: 'networkidle2' })
-  ]);
+  // Try to find and fill login fields
+  const loginFilled = await page.evaluate((email, password) => {
+    const inputs = Array.from(document.querySelectorAll('input'));
+    const loginInput = inputs.find(i => i.placeholder?.includes('Логін') || i.type === 'text');
+    const passwordInput = inputs.find(i => i.placeholder?.includes('Пароль') || i.type === 'password');
 
-  // Check if login successful
-  const url = page.url();
-  if (url.includes('login')) {
-    throw new Error('Login failed. Check credentials.');
+    if (loginInput && passwordInput) {
+      loginInput.value = email;
+      passwordInput.value = password;
+
+      // Find and click submit button
+      const buttons = Array.from(document.querySelectorAll('button, input[type="submit"]'));
+      const submitBtn = buttons.find(b => b.textContent?.includes('Увійти') || b.value?.includes('Увійти'));
+      if (submitBtn) {
+        submitBtn.click();
+        return true;
+      }
+    }
+    return false;
+  }, email, password);
+
+  if (!loginFilled) {
+    throw new Error('Could not fill login form. Please login manually in the browser.');
+  }
+
+  await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
+
+  // Verify login
+  const loginSuccess = await page.evaluate(() => {
+    return document.body.textContent.includes('Доброго дня') ||
+           !document.body.textContent.includes('Вхід на сервіс');
+  });
+
+  if (!loginSuccess) {
+    throw new Error('Login failed. Please check credentials or login manually.');
   }
 
   console.error('✓ Logged in successfully');
@@ -93,31 +131,27 @@ async function login(page, email, password) {
 async function searchDocuments(page, query, limit = 20) {
   console.error(`→ Searching for: "${query}"`);
 
-  const searchUrl = `${BASE_URL}/ua/search?q=${encodeURIComponent(query)}`;
+  const searchUrl = `${BASE_URL}/ua/catalog/searchdoc.html?request=${encodeURIComponent(query)}`;
   await page.goto(searchUrl, { waitUntil: 'networkidle2' });
 
   const html = await page.content();
   const $ = cheerio.load(html);
   const results = [];
 
-  // Parse search results
-  $('.search-result-item').each((index, element) => {
+  // Parse search results - find all doc-page links
+  $('a[href*="doc-page"]').each((index, element) => {
     if (results.length >= limit) return false;
 
     const $el = $(element);
-    const title = $el.find('.doc-title').text().trim();
-    const docLink = $el.find('a.doc-link').attr('href');
-    const id_doc = docLink ? docLink.match(/id_doc=(\d+)/)?.[1] : null;
-    const status = $el.find('.doc-status').text().trim();
-    const type = $el.find('.doc-type').text().trim();
+    const href = $el.attr('href');
+    const id_doc = href ? href.match(/id_doc=(\d+)/)?.[1] : null;
+    const title = $el.text().trim();
 
-    if (id_doc) {
+    if (id_doc && title) {
       results.push({
         id_doc,
         title,
-        url: `${BASE_URL}${docLink}`,
-        status,
-        type
+        url: href.startsWith('http') ? href : `${BASE_URL}${href}`
       });
     }
   });
