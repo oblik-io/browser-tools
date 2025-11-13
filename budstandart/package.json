@@ -1,0 +1,13 @@
+{
+	"name": "budstandart-tools",
+	"version": "1.0.0",
+	"type": "module",
+	"description": "Tools for scraping BUDSTANDART and integrating with Gemini API File Search",
+	"author": "joyshmitz",
+	"license": "MIT",
+	"dependencies": {
+		"@google/generative-ai": "^0.21.0",
+		"cheerio": "^1.1.2",
+		"puppeteer-core": "^23.11.1"
+	}
+}
