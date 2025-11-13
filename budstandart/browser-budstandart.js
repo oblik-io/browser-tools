@@ -138,8 +138,8 @@ async function searchDocuments(page, query, limit = 20) {
   const $ = cheerio.load(html);
   const results = [];
 
-  // Parse search results - find all doc-page links
-  $('a[href*="doc-page"]').each((index, element) => {
+  // Parse search results - find all links with id_doc
+  $('a[href*="id_doc"]').each((index, element) => {
     if (results.length >= limit) return false;
 
     const $el = $(element);
@@ -147,7 +147,8 @@ async function searchDocuments(page, query, limit = 20) {
     const id_doc = href ? href.match(/id_doc=(\d+)/)?.[1] : null;
     const title = $el.text().trim();
 
-    if (id_doc && title) {
+    // Filter out empty titles and duplicates
+    if (id_doc && title && title.length > 10 && !results.find(r => r.id_doc === id_doc)) {
       results.push({
         id_doc,
         title,
@@ -237,82 +238,182 @@ async function getDocumentDetails(page, id_doc) {
 }
 
 /**
- * Print document to PDF using Chrome Print to PDF
+ * Scrape HTML content for documents without PDF
  */
-async function printToPdf(page, id_doc, outputPath = null) {
-  console.error(`→ Printing document ${id_doc} to PDF...`);
+async function scrapeHtmlContent(page, id_doc, title, outputPath = null) {
+  console.error(`→ No PDF found, scraping HTML content...`);
 
-  // Navigate to document page
-  const docUrl = `${BASE_URL}/ua/catalog/doc-page.html?id_doc=${id_doc}`;
-  await page.goto(docUrl, { waitUntil: 'networkidle2' });
+  const viewerUrl = `${BASE_URL}/ua/catalog/document.html?id_doc=${id_doc}`;
+  await page.goto(viewerUrl, { waitUntil: 'networkidle2' });
 
-  // Get document title for filename
-  const title = await page.evaluate(() => {
-    const h1 = document.querySelector('h1.doc-title, h1');
-    return h1 ? h1.textContent.trim() : `doc_${Date.now()}`;
+  // Wait for content to load
+  await new Promise(resolve => setTimeout(resolve, 2000));
+
+  // Extract main document content
+  const content = await page.evaluate(() => {
+    const mainContent = document.querySelector('#bsdoctext');
+    if (!mainContent) return null;
+
+    // Get clean HTML without scripts
+    const clone = mainContent.cloneNode(true);
+
+    // Remove script tags
+    clone.querySelectorAll('script, style').forEach(el => el.remove());
+
+    return {
+      html: clone.innerHTML,
+      text: clone.textContent.trim()
+    };
   });
 
-  // Generate safe filename
+  if (!content || !content.html) {
+    throw new Error(`Could not extract HTML content for document ${id_doc}`);
+  }
+
+  // Create full HTML document
+  const fullHtml = `<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+    table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+    table, th, td { border: 1px solid #ddd; }
+    th, td { padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+    h1, h2, h3, h4 { color: #333; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>${title}</h1>
+  <p><strong>Джерело:</strong> <a href="${viewerUrl}">${viewerUrl}</a></p>
+  <hr>
+  ${content.html}
+</body>
+</html>`;
+
+  // Create safe filename
   const safeTitle = title
-    .replace(/[^а-яА-ЯёЁa-zA-Z0-9\s\-]/g, '')
+    .replace(/[\/\\?%*:|"<>]/g, '-')
     .replace(/\s+/g, '_')
-    .substring(0, 100);
+    .replace(/_{2,}/g, '_')
+    .replace(/^_|_$/g, '')
+    .substring(0, 200);
 
-  const filename = outputPath || `budstandart_${id_doc}_${safeTitle}.pdf`;
+  const filename = outputPath || `${safeTitle}.html`;
 
-  // Print to PDF using Chrome
-  const pdfBuffer = await page.pdf({
-    path: filename,
-    format: 'A4',
-    printBackground: true,
-    margin: {
-      top: '1cm',
-      right: '1cm',
-      bottom: '1cm',
-      left: '1cm'
-    }
-  });
+  // Save to file
+  const fs = await import('fs');
+  fs.writeFileSync(filename, fullHtml, 'utf-8');
 
-  console.error(`✓ Saved to: ${filename}`);
+  console.error(`✓ Scraped HTML to: ${filename}`);
+  console.error(`✓ Size: ${fullHtml.length} bytes`);
 
   return {
     id_doc,
     title,
-    url: docUrl,
+    url: viewerUrl,
+    format: 'html',
     downloadPath: filename,
-    size: pdfBuffer.length
+    size: fullHtml.length
   };
 }
 
 /**
- * Download PDF document (if direct PDF link available)
+ * Download PDF document directly from server
  */
-async function downloadDocument(page, id_doc, outputPath = null) {
-  const details = await getDocumentDetails(page, id_doc);
+async function downloadPdf(page, id_doc, outputPath = null) {
+  console.error(`→ Downloading document ${id_doc}...`);
 
-  if (!details.pdfUrl) {
-    // If no direct PDF link, use print to PDF instead
-    console.error('→ No direct PDF link found, using Print to PDF...');
-    return printToPdf(page, id_doc, outputPath);
+  // First get document title from doc-page
+  const docPageUrl = `${BASE_URL}/ua/catalog/doc-page.html?id_doc=${id_doc}`;
+  await page.goto(docPageUrl, { waitUntil: 'networkidle2' });
+
+  const title = await page.evaluate(() => {
+    const h1 = document.querySelector('h1');
+    return h1 ? h1.textContent.trim() : null;
+  });
+
+  if (!title) {
+    throw new Error(`Could not extract title for document ${id_doc}`);
   }
 
-  console.error(`→ Downloading PDF: ${details.pdfUrl}`);
+  // Navigate to document viewer to get PDF URL
+  const viewerUrl = `${BASE_URL}/ua/catalog/document.html?id_doc=${id_doc}`;
+  await page.goto(viewerUrl, { waitUntil: 'networkidle2' });
 
-  // Navigate to PDF and wait for download
-  const response = await page.goto(details.pdfUrl, { waitUntil: 'networkidle2' });
-  const buffer = await response.buffer();
+  // Extract PDF URL from iframe
+  const pdfUrl = await page.evaluate(() => {
+    const iframe = document.querySelector('iframe');
+    if (iframe) {
+      const viewerUrl = iframe.src;
+      const match = viewerUrl.match(/file=([^&]+)/);
+      return match ? decodeURIComponent(match[1]) : null;
+    }
+    return null;
+  });
 
-  const filename = outputPath || `budstandart_${id_doc}.pdf`;
+  // Fallback to HTML scraping if no PDF found
+  if (!pdfUrl) {
+    console.error(`→ No PDF iframe found, falling back to HTML scraping`);
+    return scrapeHtmlContent(page, id_doc, title, outputPath);
+  }
+
+  console.error(`→ Found PDF: ${pdfUrl}`);
+
+  // Get cookies for authentication
+  const cookies = await page.cookies();
+  const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+
+  // Download PDF using fetch
+  const response = await fetch(pdfUrl, {
+    headers: {
+      'Cookie': cookieHeader,
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to download PDF: ${response.status} ${response.statusText}`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  // Create safe filename from title
+  const safeTitle = title
+    .replace(/[\/\\?%*:|"<>]/g, '-')  // Replace invalid chars
+    .replace(/\s+/g, '_')              // Replace spaces with underscore
+    .replace(/_{2,}/g, '_')            // Remove duplicate underscores
+    .replace(/^_|_$/g, '')             // Trim underscores
+    .substring(0, 200);                // Limit length
+
+  const filename = outputPath || `${safeTitle}.pdf`;
+
+  // Save to file
   const fs = await import('fs');
   fs.writeFileSync(filename, buffer);
 
   console.error(`✓ Downloaded to: ${filename}`);
+  console.error(`✓ Size: ${buffer.length} bytes`);
 
   return {
-    ...details,
+    id_doc,
+    title,
+    url: viewerUrl,
+    pdfUrl,
     downloadPath: filename,
     size: buffer.length
   };
+}
+
+/**
+ * Download PDF document - alias for downloadPdf for backward compatibility
+ */
+async function downloadDocument(page, id_doc, outputPath = null) {
+  return downloadPdf(page, id_doc, outputPath);
 }
 
 // CLI Interface
@@ -323,23 +424,21 @@ async function main() {
     console.error(`
 Usage:
   browser-budstandart.js search <query> [--limit <number>]
-  browser-budstandart.js document <id_doc> [--download] [--output <path>]
-  browser-budstandart.js print <id_doc> [--output <path>]
+  browser-budstandart.js document <id_doc> [--output <path>]
+  browser-budstandart.js download <id_doc> [--output <path>]
   browser-budstandart.js recent [--limit <number>]
 
 Options:
   --email <email>       Login email (or set BUDSTANDART_EMAIL env var)
   --password <password> Login password (or set BUDSTANDART_PASSWORD env var)
   --limit <number>      Limit number of results (default: 20)
-  --download            Download document PDF (if direct link available)
-  --output <path>       Output path for downloaded/printed file
+  --output <path>       Output path for downloaded file
 
 Examples:
   browser-budstandart.js search "ДБН" --limit 10
   browser-budstandart.js document 90348
-  browser-budstandart.js print 90348
-  browser-budstandart.js print 90348 --output custom.pdf
-  browser-budstandart.js document 90348 --download
+  browser-budstandart.js download 90348
+  browser-budstandart.js download 90348 --output my-doc.pdf
   browser-budstandart.js recent --limit 5
 `);
     process.exit(0);
@@ -393,18 +492,11 @@ Examples:
           console.error('Error: Document ID required');
           process.exit(1);
         }
-
-        if (args.includes('--download')) {
-          const outputIndex = args.indexOf('--output');
-          const outputPath = outputIndex !== -1 ? args[outputIndex + 1] : null;
-          result = await downloadDocument(page, id_doc, outputPath);
-        } else {
-          result = await getDocumentDetails(page, id_doc);
-        }
+        result = await getDocumentDetails(page, id_doc);
         break;
       }
 
-      case 'print': {
+      case 'download': {
         const id_doc = args[1];
         if (!id_doc) {
           console.error('Error: Document ID required');
@@ -412,7 +504,7 @@ Examples:
         }
         const outputIndex = args.indexOf('--output');
         const outputPath = outputIndex !== -1 ? args[outputIndex + 1] : null;
-        result = await printToPdf(page, id_doc, outputPath);
+        result = await downloadPdf(page, id_doc, outputPath);
         break;
       }
 
@@ -442,4 +534,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   main();
 }
 
-export { login, searchDocuments, getDocumentDetails, printToPdf, downloadDocument, getRecentDocuments };
+export { login, searchDocuments, getDocumentDetails, downloadPdf, downloadDocument, getRecentDocuments };
