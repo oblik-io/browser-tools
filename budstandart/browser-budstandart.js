@@ -83,7 +83,7 @@ async function login(page, email, password) {
   await page.goto(LOGIN_URL, { waitUntil: 'networkidle2' });
 
   // Wait for login form
-  await page.waitForTimeout(2000);
+  await new Promise(resolve => setTimeout(resolve, 2000));
 
   // Try to find and fill login fields
   const loginFilled = await page.evaluate((email, password) => {
