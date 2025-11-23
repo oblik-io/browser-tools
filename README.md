@@ -1,3 +1,7 @@
+> **⚠️ DEPRECATED**: This repository has been moved to [badlogic/agent-tools](https://github.com/badlogic/agent-tools). Please use that repository instead.
+
+---
+
 # Browser Tools
 
 Chrome DevTools Protocol tools for agent-assisted web automation. These tools connect to Chrome running on `:9222` with remote debugging enabled.
